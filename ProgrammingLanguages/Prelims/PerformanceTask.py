@@ -6,7 +6,7 @@ INTEGER, PLUS, MINUS, EOF,  = 'INTEGER','PLUS', 'MINUS', 'EOF'
 
 class Token(object):
     def __init__(self,type,value):
-        #token type: INTEGER, PLUS, or EOF
+        #token type: INTEGER, PLUS, MINUS, or EOF
         self.type=type
         #token value: 0,1,2,3,4,5,6,7,8,9,'+', or None
         self.value=value
@@ -14,8 +14,9 @@ class Token(object):
     def __str__(self):
         """String representation of the class instance.
         
-        Example: Token(INTEGER,3)
-        Token(PLUS'+')
+        Examples: 
+        Token(INTEGER,3)
+        Token(PLUS, '+')
         
         """
         
@@ -30,7 +31,7 @@ class Token(object):
 
 class Interpreter(object):
     def __init__(self,text):
-        #client string input, e.g. "3+5"
+        #client string input, e.g. "3+5", "12 - 5 + 3", etc
         self.text=text
         #self.pos is an index into self.text
         self.pos = 0
@@ -53,17 +54,16 @@ class Interpreter(object):
             if self.current_char.isspace():
                 self.skip_whitespace()
                 continue
-            elif self.current_char.isdigit():
+            if self.current_char.isdigit():
                 return Token(INTEGER, self.integer())
-            elif self.current_char == '+':
+            if self.current_char == '+':
                 self.advance()
                 return Token(PLUS, '+')
-            elif self.current_char == '-':
+            if self.current_char == '-':
                 self.advance()
                 return Token(MINUS, '')
-            else:
-                self.error()
-            return Token(EOF, None)
+            self.error()
+        return Token(EOF, None)
     
     def skip_whitespace(self):
         while self.current_char is not None and self.current_char.isspace():
@@ -94,35 +94,26 @@ class Interpreter(object):
         else:
             self.error()
         
+    def term(self):
+        """Return an INTEGER token value"""
+        token=self.current_token
+        self.eat(INTEGER)
+        return token.value
+        
     def expr(self):
         """expr->INTEGER PLUS INTEGER"""
         #set current token to the first token taken from the input
         self.current_token = self.get_next_token()
         
-        #we expect the current token to be a single-digit integer
-        left=self.current_token
-        self.eat(INTEGER)
-        
-        #we expect the current token to be a '+' token
-        op=self.current_token
-        if op.type == PLUS:
-            self.eat(PLUS)
-        else:
-            self.eat(MINUS)
-        #we expect the current token to be a single digit integer
-        right=self.current_token
-        self.eat(INTEGER)
-        #adter the above call the self.current_token is set to
-        #EOF token
-        
-        #at this point INTEGER PLUS INTEGER sequence of tokens
-        #has been successfully found and the method can just 
-        #return the result of adding two integers, thus
-        #effectively interpreting client input
-        if op.type == PLUS:
-            result = left.value + right.value
-        else:
-            result = left.value - right.value
+        result = self.term()
+        while self.current_token.type in (PLUS, MINUS):
+            token = self.current_token
+            if token.type == PLUS:
+                self.eat(PLUS)
+                result += self.term()
+            elif token.type == MINUS:
+                self.eat(MINUS)
+                result -= self.term()
         return result
     
 
@@ -131,7 +122,7 @@ def main():
         try:
             #To run under Python3 replace 'raw_input' call
             #with 'input'
-            text=input('calc>')
+            text=input('calc> ')
             
         except EOFError:
             break
