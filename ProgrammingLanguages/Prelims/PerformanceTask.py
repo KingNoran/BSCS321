@@ -2,7 +2,7 @@
 #
 # EOF (endd-of-file) token is used to indicate that there is no more input left for lexical analysis
 
-INTEGER, PLUS, MINUS,  MUL, DIV, EOF,  = 'INTEGER', 'PLUS', 'MINUS', 'MUL', 'DIV', 'EOF'
+INTEGER, PLUS, MINUS,  MUL, DIV, LPAREN, RPAREN, EOF,  = 'INTEGER', 'PLUS', 'MINUS', 'MUL', 'DIV', 'LPAREN', 'RPAREN', 'EOF'
 
 class Token(object):
     def __init__(self,type,value):
@@ -66,6 +66,7 @@ class Lexer(object):
         apart into tokens. One token at a time.
         """
         while self.current_char is not None:
+            
             if self.current_char.isspace():
                 self.skip_whitespace()
                 continue
@@ -88,6 +89,14 @@ class Lexer(object):
             if self.current_char == '/':
                 self.advance()
                 return Token(DIV, '/')
+            
+            if self.current_char == '(':
+                self.advance()
+                return Token(LPAREN, '(')
+            
+            if self.current_char == ')':
+                self.advance()
+                return Token(RPAREN, ')')
             
             self.error()
         
@@ -113,13 +122,16 @@ class Interpreter(object):
             self.error()
     
     def factor(self):
-        """Return an INTEGER token value.
-        
-        factor: INTEGER
-        """
+        """factor : INTEGER | LPAREN expr RPAREN"""
         token = self.current_token
-        self.eat(INTEGER)
-        return token.value
+        if token.type == INTEGER:
+            self.eat(INTEGER)
+            return token.value
+        elif token.type == LPAREN:
+            self.eat(LPAREN)
+            result = self.expr()
+            self.eat(RPAREN)
+            return result
     
     def term(self):
         """term : factor ((MUL | DIV) factor)*"""
@@ -129,18 +141,23 @@ class Interpreter(object):
             token = self.current_token
             if token.type == MUL:
                 self.eat(MUL)
-                result = result * self.factor()
+                result *= self.factor()
             elif token.type == DIV:
                 self.eat(DIV)
-                result = result / self.factor()
+                result /= self.factor()
         return int(result)
     
     def expr(self):
         """Arithmetic expression parser / interpreter.
         
-        expr    : factor ((MU | DIV) factor)*
-        factor  : INTEGER
+        calc> 7 + 3 * (10 / (12 / (3 + 1) - 1))
+        22
+        
+        expr    : term ((PLUS | MINUS) term)*
+        term    : factor ((MUL | DIV) factor)*
+        factor  : INTEGER | LPAREN expr RPAREN
         """
+        
         result = self.term()
         
         while self.current_token.type in (PLUS, MINUS):
@@ -159,7 +176,6 @@ def main():
             #To run under Python3 replace 'raw_input' call
             #with 'input'
             text=input('calc> ')
-            
         except EOFError:
             break
         if not text:
