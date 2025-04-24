@@ -4,6 +4,20 @@
 
 INTEGER, PLUS, MINUS,  MUL, DIV, LPAREN, RPAREN, EOF,  = 'INTEGER', 'PLUS', 'MINUS', 'MUL', 'DIV', 'LPAREN', 'RPAREN', 'EOF'
 
+class AST(object):
+    pass
+
+class BinOp(AST):
+    def __init__(self, left, op, right):
+        self.left = left
+        self.token = self.op = op
+        self.right = right
+        
+class Num(AST):
+    def __init__(self,token):
+        self.token = token
+        self.value = token.value
+
 class Token(object):
     def __init__(self,type,value):
         #token type: INTEGER, PLUS, MINUS, or EOF
@@ -102,7 +116,7 @@ class Lexer(object):
         
         return Token(EOF, None)
 
-class Interpreter(object):
+class Parser(object):
     def __init__(self,lexer):
         self.lexer=lexer
         # set current token to the first token taken from the input
@@ -126,63 +140,99 @@ class Interpreter(object):
         token = self.current_token
         if token.type == INTEGER:
             self.eat(INTEGER)
-            return token.value
+            return Num(token)
         elif token.type == LPAREN:
             self.eat(LPAREN)
-            result = self.expr()
+            node = self.expr()
             self.eat(RPAREN)
-            return result
+            return node
     
     def term(self):
         """term : factor ((MUL | DIV) factor)*"""
-        result = self.factor()
+        node = self.factor()
         
         while self.current_token.type in (MUL, DIV):
             token = self.current_token
             if token.type == MUL:
                 self.eat(MUL)
-                result *= self.factor()
             elif token.type == DIV:
                 self.eat(DIV)
-                result /= self.factor()
-        return int(result)
+                
+            node = BinOp(left=node, op=token, right=self.factor())
+            
+        return node
     
     def expr(self):
-        """Arithmetic expression parser / interpreter.
-        
-        calc> 7 + 3 * (10 / (12 / (3 + 1) - 1))
-        22
-        
+        """
         expr    : term ((PLUS | MINUS) term)*
         term    : factor ((MUL | DIV) factor)*
         factor  : INTEGER | LPAREN expr RPAREN
         """
         
-        result = self.term()
+        node = self.term()
         
         while self.current_token.type in (PLUS, MINUS):
             token = self.current_token
             if token.type == PLUS:
                 self.eat(PLUS)
-                result += self.term()
             elif token.type == MINUS:
                 self.eat(MINUS)
-                result -= self.term()
-        return result
+            
+            node = BinOp(left=node, op=token, right=self.term())
+                
+        return node
+    
+    def parse(self):
+        return self.expr()
+    
+class NodeVisitor(object):
+    def visit(self, node):
+        method_name = "visit_" + type(node).__name__
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node)
+    
+    def generic_visit(self, node):
+        raise Exception(f"No visit_{type(node).__name__} method")
+
+class Interpreter(NodeVisitor):
+    def __init__(self, parser):
+        self.parser = parser
+        
+    def visit_BinOp(self, node):
+        if node.op.type == PLUS:
+            return self.visit(node.left) + self.visit(node.right)
+        elif node.op.type == MINUS:
+            return self.visit(node.left) - self.visit(node.right)
+        elif node.op.type == MUL:
+            return self.visit(node.left) * self.visit(node.right)
+        elif node.op.type == DIV:
+            return self.visit(node.left) // self.visit(node.right)
+    
+    def visit_Num(self, node):
+        return node.value
+    
+    def interpret(self):
+        tree = self.parser.parse()
+        return self.visit(tree)
 
 def main():
     while True:
         try:
             #To run under Python3 replace 'raw_input' call
             #with 'input'
-            text=input('calc> ')
+            try:
+                text = raw_input('spi> ')
+            except NameError:
+                text = input('spi> ')
         except EOFError:
             break
         if not text:
             continue
+        
         lexer = Lexer(text)
-        interpreter = Interpreter(lexer)
-        result = interpreter.expr()
+        parser = Parser(lexer)
+        interpreter = Interpreter(parser)
+        result = interpreter.interpret()
         print(result)
         
 if __name__ == '__main__':
