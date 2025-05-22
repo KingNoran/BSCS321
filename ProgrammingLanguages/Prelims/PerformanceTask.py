@@ -613,7 +613,8 @@ def main():
     parser = Parser(lexer)
     interpreter = Interpreter(parser)
     result = interpreter.interpret()
-    print(interpreter.GLOBAL_SCOPE)
+    for [key, value] in interpreter.GLOBAL_SCOPE.items():
+        print(f"{key} : {value}")
 
 
 if __name__ == '__main__':
